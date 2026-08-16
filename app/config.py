@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     document_encryption_key: str = ""
     download_link_secret: str = ""
     cron_secret: str = ""
+    jwt_secret: str = ""
+    password_reset_secret: str = ""
+    frontend_url: str = "http://localhost:3000"
+    email_verification_secret: str = ""
+    demo_owner_key: str = ""
+    template_tenant_id: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

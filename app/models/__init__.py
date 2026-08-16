@@ -5,7 +5,7 @@ from app.models.party import Party
 from app.models.reminder import Reminder
 from app.models.tenant import Tenant
 from app.models.webhook_subscription import WebhookSubscription
-
+from app.models.user import User
 
 __all__ = [
     "Base",
@@ -17,5 +17,6 @@ __all__ = [
     "Party",
     "Reminder",
     "Tenant",
-    "WebhookSubscription"
+    "WebhookSubscription",
+    "User"
 ]

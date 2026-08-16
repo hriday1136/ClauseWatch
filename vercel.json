@@ -4,6 +4,6 @@
     "app/main.py": { "maxDuration": 60 }
   },
   "crons": [
-    { "path": "/cron/sync-reminders", "schedule": "0 6 * * *" }
+    { "path": "/cron/daily-maintenance", "schedule": "0 6 * * *" }
   ]
 }

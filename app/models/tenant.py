@@ -10,3 +10,4 @@ class Tenant(Base, UUIDPKMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(nullable=False)
     api_key_hash: Mapped[str] = mapped_column(nullable=False, unique=True, index=True)
     notification_email: Mapped[str | None] = mapped_column(nullable=True)
+    is_demo: Mapped[bool] = mapped_column(nullable=False, default=False)

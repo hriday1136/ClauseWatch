@@ -56,3 +56,12 @@ class UpcomingDeadlineOut(BaseModel):
     original_filename: str
     renewal_date: str
     days_until_renewal: int
+
+class ContractSummaryOut(BaseModel):
+    id: uuid.UUID
+    status: ContractStatus
+    file_type: FileType
+    original_filename: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

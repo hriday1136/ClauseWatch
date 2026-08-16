@@ -1,18 +1,24 @@
 import uuid
+import logging
 
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_tenant
+from app.deps import get_current_tenant_flexible
 from app.models import Contract, Tenant, ContractStatus, FileType, Clause, ClauseType
-from app.storage import upload_file, download_file
+from app.storage import upload_file, download_file, delete_file
 from app.persistence import process_contract
 from app.schemas import ContractDetailOut, ClauseCorrectionIn, ClauseOut, UpcomingDeadlineOut
 from app.download_tokens import generate_download_token, verify_download_token
 from app.metrics import contracts_uploaded_total
+from app.schemas import ContractSummaryOut
+from app.reminders import dispatch_due_reminders, sync_reminders
+from app.contract_deletion import delete_contract_fully
 
 from datetime import datetime, timezone, date, timedelta
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/contracts", tags=["contracts"])
 
@@ -21,7 +27,7 @@ ALLOWED_EXTENSIONS = {".pdf": FileType.pdf, ".docx": FileType.docx}
 @router.post("")
 def upload_contract(
     file: UploadFile = File(...),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant_flexible),
     db: Session = Depends(get_db)
 ):
     extension = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
@@ -66,7 +72,7 @@ def upload_contract(
 @router.get("/upcoming-deadlines", response_model=list[UpcomingDeadlineOut])
 def upcoming_deadlines(
     days: int = 30,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant_flexible),
     db: Session = Depends(get_db)
 ):
     cutoff = date.today() + timedelta(days=days)
@@ -99,10 +105,22 @@ def upcoming_deadlines(
     upcoming.sort(key=lambda item: item.days_until_renewal)
     return upcoming
 
+@router.get("", response_model=list[ContractSummaryOut])
+def list_contracts(
+    tenant: Tenant = Depends(get_current_tenant_flexible),
+    db: Session = Depends(get_db),
+):
+    return (
+        db.query(Contract)
+        .filter(Contract.tenant_id == tenant.id)
+        .order_by(Contract.created_at.desc())
+        .all()
+    )
+
 @router.get("/{contract_id}", response_model=ContractDetailOut)
 def get_contract(
     contract_id: uuid.UUID,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant_flexible),
     db: Session = Depends(get_db)
 ):
     contract = (
@@ -120,7 +138,7 @@ def get_contract(
 @router.get("/{contract_id}/download-url")
 def get_download_url(
     contract_id: uuid.UUID,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant_flexible),
     db: Session = Depends(get_db)
 ):
     contract = (
@@ -132,7 +150,7 @@ def get_download_url(
         raise HTTPException(status_code=404, detail="contract not found")
 
     token = generate_download_token(contract.id)
-    return {"download-url": f"/contracts/{contract.id}/download?token={token}"}
+    return {"download_url": f"/contracts/{contract.id}/download?token={token}"}
 
 @router.get("/{contract_id}/download")
 def download_contract_file(contract_id:uuid.UUID, token:str, db:Session=Depends(get_db)):
@@ -148,10 +166,11 @@ def download_contract_file(contract_id:uuid.UUID, token:str, db:Session=Depends(
         "application/pdf" if contract.file_type == FileType.pdf
         else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
+    disposition = "inline" if contract.file_type == FileType.pdf else "attachment"
     return Response(
         content=file_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{contract.original_filename}"'}
+        headers={"Content-Disposition": f'{disposition}; filename="{contract.original_filename}"'}
     )
 
 @router.patch("/{contract_id}/clauses/{clause_id}", response_model=ClauseOut)
@@ -159,7 +178,7 @@ def correct_clause(
     contract_id: uuid.UUID,
     clause_id: uuid.UUID,
     correction: ClauseCorrectionIn,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant_flexible),
     db: Session = Depends(get_db)
 ):
     contract = (
@@ -197,7 +216,7 @@ def correct_clause(
 @router.post("/{contract_id}/approve", response_model=ContractDetailOut)
 def approve_contract(
     contract_id: uuid.UUID,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant_flexible),
     db: Session = Depends(get_db),
 ):
     contract = (
@@ -219,4 +238,37 @@ def approve_contract(
     contract.status = ContractStatus.completed
     db.commit()
     db.refresh(contract)
+
+    sync_reminders(db)
+    dispatch_due_reminders(db)
+
     return contract
+
+@router.delete("/{contract_id}", status_code=204)
+def delete_contract(
+    contract_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant_flexible),
+    db: Session = Depends(get_db),
+):
+    contract = (
+        db.query(Contract)
+        .filter(Contract.id == contract_id, Contract.tenant_id == tenant.id)
+        .first()
+    )
+    if contract is None:
+        raise HTTPException(status_code=404, detail="contract not found")
+
+    delete_contract_fully(contract, db)
+    db.commit()
+    return Response(status_code=204)
+
+@router.delete("", status_code=204)
+def delete_all_contracts(
+    tenant: Tenant = Depends(get_current_tenant_flexible),
+    db: Session = Depends(get_db),
+):
+    contracts = db.query(Contract).filter(Contract.tenant_id == tenant.id).all()
+    for contract in contracts:
+        delete_contract_fully(contract, db)
+    db.commit()
+    return Response(status_code=204)

@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -11,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.deps import get_current_tenant
 from app.models import Tenant
 from app.storage import ensure_bucket_exists
-from app.routers import webhooks, cron
+from app.routers import webhooks, cron, auth
 from app import metrics  # noqa: F401
 from app.routers import contracts
 from app.logging_config import configure_logging, request_id_var
@@ -30,6 +31,7 @@ app = FastAPI(title="ClauseWatch", version="0.1.0", lifespan=lifespan)
 app.include_router(contracts.router)
 app.include_router(webhooks.router)
 app.include_router(cron.router)
+app.include_router(auth.router)
 
 @app.get("/health")
 def health():
@@ -67,4 +69,11 @@ class RequestIdMiddleware:
 def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-app.add_middleware(RequestIdMiddleware) 
+app.add_middleware(RequestIdMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

@@ -43,3 +43,7 @@ class Contract(Base, UUIDPKMixin, TimestampMixin):
     parties: Mapped[list["Party"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
     clauses : Mapped[list["Clause"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
     reminders: Mapped[list["Reminder"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
+    
+    submitted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )

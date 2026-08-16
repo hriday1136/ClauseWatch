@@ -17,3 +17,4 @@ resend
 cryptography
 python-json-logger
 prometheus-client
+pyjwt

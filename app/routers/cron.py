@@ -3,14 +3,16 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.demo_cleanup import cleanup_stale_demo_tenants
 from app.reminders import dispatch_due_reminders, sync_reminders
 
 router = APIRouter(prefix="/cron", tags=["cron"])
 
-@router.get("/sync-reminders")
-def cron_sync_reminders(
+
+@router.get("/daily-maintenance")
+def cron_daily_maintenance(
     authorization: str = Header(default=""),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     expected = f"Bearer {settings.cron_secret}"
     if not settings.cron_secret or authorization != expected:
@@ -18,4 +20,6 @@ def cron_sync_reminders(
 
     created = sync_reminders(db)
     dispatched = dispatch_due_reminders(db)
-    return {"created": created, "dispatched": dispatched}
+    demo_cleaned = cleanup_stale_demo_tenants(db)
+
+    return {"created": created, "dispatched": dispatched, "demo_tenants_cleaned": demo_cleaned}

@@ -19,9 +19,11 @@ def sync_reminders(db: Session) -> int:
     renewal_clauses = (
         db.query(Clause)
         .join(Contract, Clause.contract_id == Contract.id)
+        .join(Tenant, Contract.tenant_id == Tenant.id)
         .filter(
             Clause.type == ClauseType.renewal_date,
-            Contract.status == ContractStatus.completed
+            Contract.status == ContractStatus.completed,
+            Tenant.is_demo == False,
         )
         .all()
     )

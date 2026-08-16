@@ -38,3 +38,6 @@ def download_file(key: str) -> bytes:
     response = s3_client.get_object(Bucket=settings.minio_bucket_name, Key=key)
     encrypted_bytes = response["Body"].read()
     return decrypt_bytes(encrypted_bytes)
+
+def delete_file(key: str) -> None:
+    s3_client.delete_object(Bucket=settings.minio_bucket_name, Key=key)
