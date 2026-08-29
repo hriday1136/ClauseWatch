@@ -2,8 +2,7 @@
 
 A multi-tenant contract intelligence API. Upload a contract (PDF/DOCX), and it automatically extracts parties, key dates, notice periods, and termination terms via an LLM — each field with a confidence score — flags anything uncertain for human review, and sends reminders before renewal deadlines.
 
-**Live API:** https://clausewatch-viewer.vercel.app
-**Frontend:** https://clause-watch-tracker.vercel.app · [frontend repo](https://github.com/hriday1136/ClauseWatch-frontend)
+**Live Website Link:** https://clause-watch-tracker.vercel.app
 
 ---
 
